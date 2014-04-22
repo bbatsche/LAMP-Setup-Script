@@ -3,6 +3,12 @@
 module Support
   extend self
 
+  @@box_url = "http://goo.gl/ceHWg"
+
+  def box_url
+    @@box_url
+  end
+
   def brew_install(package, *options)
     output = `brew list #{package}`
     return unless output.empty?
@@ -12,7 +18,7 @@ module Support
 
   def brew_cask_install(package, *options)
     output = `brew cask info #{package}`
-    return unless output.include?('Not installed')
+    return unless output.include? 'Not installed'
 
     system "brew cask install #{package} #{options.join ' '}"
   end
@@ -128,7 +134,7 @@ module Steps
       description = "We will now install a tool called 'Homebrew'. This is a package manager we will use to install several "
       description+= "other utilities we will be using in the course, including Ansible, Vagrant, and VirtualBox. "
       description+= "You will probably be asked for your password a couple of times through this process; "
-      description+= "when you type it, your password will not be displayed on the screen. This is normal."
+      description+= "when you type it in, your password will not be displayed on the screen. This is normal."
 
       self.block description
 
@@ -150,9 +156,21 @@ module Steps
   end
 
   def vagrant
-    # Download boxfile
-    # vagrant box add
+    boxes = `vagrant box list`
 
+    if boxes.include? "codeup-raring"
+      description = "Looks like you've already setup our vagrant box, we'll move on."
+
+      self.block description
+    else
+      description = "Now we will download our vagrant box file. Vagrant is a utility for managing virtual machines, and "
+      description+= "a box file contains a virtual machine definition and its code. Be patient! This file is a little over "
+      description+= "400MB and will take a while to download."
+
+      self.block description
+
+      system "vagrant box add codeup-raring #{Support.box_url}"
+    end
   end
 
   def git
