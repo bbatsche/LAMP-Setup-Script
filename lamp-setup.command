@@ -30,7 +30,7 @@ module Support
 
   def git_clone(user, package, path)
     unless File.exist? File.expand_path(path)
-      system "git clone https://github.com/#{user}/#{package} #{path}"
+      system "git clone https://github.com/#{user}/#{package} " + File.expand_path(path)
     end
   end
 
@@ -72,7 +72,7 @@ module Steps
     line = ''
 
     description.split.each { |word|
-      if line.length + word.length > 77
+      if line.length + word.length > 76
         puts "   #{line}"
         line = ''
       end
@@ -124,10 +124,10 @@ module Steps
 
       self.block description
 
+      system "xcode-select --install"
+
       while !Support.xcode?
         sleep 1
-
-        `xcode-select --print-path 2>&1`
       end
     end
   end
@@ -184,7 +184,7 @@ module Steps
   end
 
   def git
-    if !File.directory?(Support.repo_path) || !Support.git_checked_out?(Support.repo_path)
+    if File.directory?(File.expand_path(Support.repo_path)) && Support.repo_checked_out?(File.expand_path(Support.repo_path))
       self.block "Looks like our project directory has already been checked out. On to the next step."
     else
       description = "We will now use Git to download our project directory. This project will set up your Vagrant "
@@ -212,23 +212,29 @@ module Steps
       # open codeup.dev in web browser
     end
 
-    if !File.exists?(File.expand_path("~/.ssh/codeup_rsa")) || !File.exists?(File.expand_path("~/.ssh/codeup_rsa.pub"))
+    unless File.exists?(File.expand_path("~/.ssh/codeup_rsa")) && File.exists?(File.expand_path("~/.ssh/codeup_rsa.pub"))
       description = "We're now going to generate an SSH public/private key pair. This key is like a fingerprint for you "
-      description+= "on this computer. We'll use this key for connecting into GitHub without having to enter a password, and "
+      description+= "on your laptop. We'll use this key for connecting into GitHub without having to enter a password, and "
       description+= "when you ultimately deploy your website to a third party server."
 
       self.block description
 
       description = "We will be putting a comment in the SSH key pair as well. Comments can be used to keep track of different "
-      description+= "keys on different servers. The comment will be formatted as [your name]@codeup. Please type in your name "
-      description+= "and press 'Return'."
+      description+= "keys on different servers. The comment will be formatted as [your name]@codeup."
 
-      name = self.block(description).chomp
+      self.block description
+
+      name = ''
+      while name.empty?
+        name = self.block("Please type in your name and press 'Return'.").chomp
+      end
 
       system "ssh-keygen -trsa -b2048 -C '#{name}@codeup' -f ~/.ssh/codeup_rsa"
+
+      # give instructions on adding key to GitHub.com?
     end
 
-    if !File.exists?("~/.ssh/config") || IO.readlines("~/.ssh/config").grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
+    unless File.exists?(File.expand_path("~/.ssh/config")) && !IO.readlines(File.expand_path("~/.ssh/config")).grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
       File.open(File.expand_path("~/.ssh/config"), "a") { |config|
         config.puts "Host github.com"
         config.puts "\tUser git"
@@ -236,13 +242,26 @@ module Steps
       }
     end
 
-    description = "Looks like we're ready to go!"
+    description = "Ok! We've gotten everything setup and you should be ready to go! Thanks for taking the time to "
+    description+= "get your laptop configured and good luck in the class. Go Codeup!"
+
+    self.block description
   end
 end
 
-Steps.step "start"
-Steps.step "xcode"
-Steps.step "homebrew"
-Steps.step "vagrant"
-Steps.step "git"
-Steps.step "final"
+begin
+  Steps.step "start"
+  Steps.step "xcode"
+  Steps.step "homebrew"
+  Steps.step "vagrant"
+  Steps.step "git"
+  Steps.step "final"
+rescue => e
+  puts "Oh no! Looks like something has gone wrong in the process."
+  puts "Please copy the contents of this window and paste them into an"
+  puts "eMail to <instructors@codeup.com>."
+  puts "We're sorry about the inconvenience; we'll get the error resolved as quickly"
+  puts "as we can and let you know when you may re-run the setup process."
+  puts "Error: " + e.message
+  puts e.backtrace.join("\n")
+end
