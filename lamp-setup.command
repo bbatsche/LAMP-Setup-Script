@@ -4,9 +4,14 @@ module Support
   extend self
 
   @@box_url = "http://goo.gl/ceHWg"
+  @@repo_path = "~/vagrant-lamp"
 
   def box_url
     @@box_url
+  end
+
+  def repo_path
+    @@repo_path
   end
 
   def brew_install(package, *options)
@@ -34,12 +39,22 @@ module Support
     ["~#{path}", path].each do |full_path|
       return full_path if File.directory?(full_path)
     end
-
-    return nil
   end
 
   def app?(name)
-    return !self.app_path(name).nil?
+    !self.app_path(name).nil?
+  end
+
+  def xcode?
+    `xcode-select --print-path 2>&1`
+
+    $?.success?
+  end
+
+  def repo_checked_out?(path)
+    `cd #{path} && git status`
+
+    $?.success?
   end
 end
 
@@ -54,19 +69,18 @@ module Steps
   end
 
   def block(description)
-    words = description.split
     line = ''
 
-    words.each { |word|
+    description.split.each { |word|
       if line.length + word.length > 77
-        puts "   " + line
+        puts "   #{line}"
         line = ''
       end
 
       line += "#{word} "
     }
 
-    puts "   " + line
+    puts "   #{line}"
     gets
   end
 
@@ -101,9 +115,7 @@ module Steps
   end
 
   def xcode
-    `xcode-select --print-path 2>&1`
-
-    if $?.success?
+    if Support.xcode?
       self.block "Xcode commandline tool are already installed, moving on."
     else
       description = "We need to install some commandline tools for Xcode. When you press 'Return', a dialog will pop up "
@@ -112,9 +124,7 @@ module Steps
 
       self.block description
 
-      system "xcode-select --install"
-
-      while !$?.success?
+      while !Support.xcode?
         sleep 1
 
         `xcode-select --print-path 2>&1`
@@ -174,13 +184,29 @@ module Steps
   end
 
   def git
-    # Checkout vagrant-lamp repo
+    if !File.directory?(Support.repo_path) || !Support.git_checked_out?(Support.repo_path)
+      self.block "Looks like our project directory has already been checked out. On to the next step."
+    else
+      description = "We will now use Git to download our project directory. This project will set up your Vagrant "
+      description+= "environment. All of your development in the class will be done inside this Vagrant environment."
 
+      self.block description
+
+      Support.git_clone("gocodeup", "vagrant-lamp", Support.repo_path)
+    end
   end
 
   def final
-    # Edit hosts file
-    # Generate codeup_rsa key
+    if IO.readlines("/etc/hosts").grep(/192\.168\.77\.77\s+codeup\.dev/).empty?
+      description = "We need to add an entry to your hosts file so we can easily connect to sites in your Vagrant environment. "
+      description+= "The hosts file is a shortcut for DNS lookup. We are going to put the domain name 'codeup.dev' in the "
+      description+= "hosts file and point it into your Vagrant environment, allowing you to connect into it without "
+      description+= "having to memorize IP addresses or ports. This will require you to again put in your password."
+
+      self.block description
+
+      system "sudo sh -c \"echo '\n192.168.77.77\tcodeup.dev' >> /etc/hosts\""
+    end
 
   end
 end
