@@ -193,6 +193,8 @@ module Steps
       self.block description
 
       Support.git_clone("gocodeup", "vagrant-lamp", Support.repo_path)
+
+      # set up vagrant box in the repo
     end
   end
 
@@ -206,8 +208,35 @@ module Steps
       self.block description
 
       system "sudo sh -c \"echo '\n192.168.77.77\tcodeup.dev' >> /etc/hosts\""
+
+      # open codeup.dev in web browser
     end
 
+    if !File.exists?(File.expand_path("~/.ssh/codeup_rsa")) || !File.exists?(File.expand_path("~/.ssh/codeup_rsa.pub"))
+      description = "We're now going to generate an SSH public/private key pair. This key is like a fingerprint for you "
+      description+= "on this computer. We'll use this key for connecting into GitHub without having to enter a password, and "
+      description+= "when you ultimately deploy your website to a third party server."
+
+      self.block description
+
+      description = "We will be putting a comment in the SSH key pair as well. Comments can be used to keep track of different "
+      description+= "keys on different servers. The comment will be formatted as [your name]@codeup. Please type in your name "
+      description+= "and press 'Return'."
+
+      name = self.block(description).chomp
+
+      system "ssh-keygen -trsa -b2048 -C '#{name}@codeup' -f ~/.ssh/codeup_rsa"
+    end
+
+    if !File.exists?("~/.ssh/config") || IO.readlines("~/.ssh/config").grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
+      File.open(File.expand_path("~/.ssh/config"), "a") { |config|
+        config.puts "Host github.com"
+        config.puts "\tUser git"
+        config.puts "\tIdentityFile ~/.ssh/codeup_rsa"
+      }
+    end
+
+    description = "Looks like we're ready to go!"
   end
 end
 
