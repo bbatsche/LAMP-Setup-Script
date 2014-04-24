@@ -5,6 +5,11 @@ module Support
 
   @@box_url = "http://goo.gl/ceHWg"
   @@repo_path = "~/vagrant-lamp"
+  @@steps = ["start", "xcode", "homebrew", "vagrant", "git", "final"]
+
+  def steps
+    @@steps
+  end
 
   def box_url
     @@box_url
@@ -29,15 +34,15 @@ module Support
   end
 
   def git_clone(user, package, path)
-    unless File.exist? File.expand_path(path)
-      system "git clone https://github.com/#{user}/#{package} " + File.expand_path(path)
+    unless File.exist? path
+      system "git clone https://github.com/#{user}/#{package} #{path}"
     end
   end
 
   def app_path(name)
     path = "/Applications/#{name}.app"
     ["~#{path}", path].each do |full_path|
-      return full_path if File.directory?(full_path)
+      return full_path if File.directory? full_path
     end
   end
 
@@ -71,20 +76,20 @@ module Steps
   def block(description)
     line = ''
 
-    description.split.each { |word|
+    description.split.each do |word|
       if line.length + word.length > 76
         puts "   #{line}"
         line = ''
       end
 
       line += "#{word} "
-    }
+    end
 
     puts "   #{line}"
     gets
   end
 
-  def step(name)
+  def do_step(name)
     case name
       when "start"
         self.heading "Welcome!"
@@ -102,7 +107,7 @@ module Steps
         raise "Unknown step #{name}"
     end
 
-    self.send(name)
+    self.send name
   end
 
   def start
@@ -152,7 +157,7 @@ module Steps
     end
 
     # Install brew cask
-    system('brew tap | grep phinze/cask > /dev/null') || system('brew tap phinze/homebrew-cask')
+    system('brew tap | grep phinze/cask > /dev/null') || system('brew tap phinze/cask')
     Support.brew_install 'brew-cask'
 
     # Install ansible
@@ -184,7 +189,9 @@ module Steps
   end
 
   def git
-    if File.directory?(File.expand_path(Support.repo_path)) && Support.repo_checked_out?(File.expand_path(Support.repo_path))
+    full_repo_path = File.expand_path Support.repo_path
+
+    if File.directory?(full_repo_path) && Support.repo_checked_out?(full_repo_path)
       self.block "Looks like our project directory has already been checked out. On to the next step."
     else
       description = "We will now use Git to download our project directory. This project will set up your Vagrant "
@@ -192,7 +199,7 @@ module Steps
 
       self.block description
 
-      Support.git_clone("gocodeup", "vagrant-lamp", Support.repo_path)
+      Support.git_clone("gocodeup", "vagrant-lamp", full_repo_path)
 
       # set up vagrant box in the repo
     end
@@ -212,7 +219,8 @@ module Steps
       # open codeup.dev in web browser
     end
 
-    unless File.exists?(File.expand_path("~/.ssh/codeup_rsa")) && File.exists?(File.expand_path("~/.ssh/codeup_rsa.pub"))
+    key_path = File.expand_path "~/.ssh/codeup_rsa"
+    unless File.exists?(key_path) && File.exists?("#{key_path}.pub")
       description = "We're now going to generate an SSH public/private key pair. This key is like a fingerprint for you "
       description+= "on your laptop. We'll use this key for connecting into GitHub without having to enter a password, and "
       description+= "when you ultimately deploy your website to a third party server."
@@ -226,7 +234,8 @@ module Steps
 
       name = ''
       while name.empty?
-        name = self.block("Please type in your name and press 'Return'.").chomp
+        print "   Please type in your name and press 'Return'. "
+        name = gets.chomp
       end
 
       system "ssh-keygen -trsa -b2048 -C '#{name}@codeup' -f ~/.ssh/codeup_rsa"
@@ -234,12 +243,13 @@ module Steps
       # give instructions on adding key to GitHub.com?
     end
 
-    unless File.exists?(File.expand_path("~/.ssh/config")) && !IO.readlines(File.expand_path("~/.ssh/config")).grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
-      File.open(File.expand_path("~/.ssh/config"), "a") { |config|
+    ssh_config = File.expand_path "~/.ssh/config"
+    unless File.exists?(ssh_config) && !IO.readlines(ssh_config).grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
+      File.open(ssh_config, "a") do |config|
         config.puts "Host github.com"
         config.puts "\tUser git"
         config.puts "\tIdentityFile ~/.ssh/codeup_rsa"
-      }
+      end
     end
 
     description = "Ok! We've gotten everything setup and you should be ready to go! Thanks for taking the time to "
@@ -250,12 +260,9 @@ module Steps
 end
 
 begin
-  Steps.step "start"
-  Steps.step "xcode"
-  Steps.step "homebrew"
-  Steps.step "vagrant"
-  Steps.step "git"
-  Steps.step "final"
+  Support.steps.each do |step|
+    Steps.do_step step
+  end
 rescue => e
   puts "Oh no! Looks like something has gone wrong in the process."
   puts "Please copy the contents of this window and paste them into an"
@@ -263,5 +270,5 @@ rescue => e
   puts "We're sorry about the inconvenience; we'll get the error resolved as quickly"
   puts "as we can and let you know when you may re-run the setup process."
   puts "Error: " + e.message
-  puts e.backtrace.join("\n")
+  puts e.backtrace.join "\n"
 end
