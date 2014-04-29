@@ -3,20 +3,26 @@
 module Support
   extend self
 
-  @@box_url = "http://goo.gl/ceHWg"
   @@repo_path = "~/vagrant-lamp"
-  @@steps = ["start", "xcode", "homebrew", "vagrant", "git", "final"]
+  @@repo_url = "https://github.com/gocodeup/vagrant-lamp/archive/master.zip"
+  @@steps = ["start", "xcode", "homebrew", "git", "final"]
 
   def steps
     @@steps
   end
 
-  def box_url
-    @@box_url
-  end
-
   def repo_path
     @@repo_path
+  end
+
+  def repo_url
+    @@repo_url
+  end
+
+  def git_download(repo_url, local_path)
+    system "curl -L --progress-bar -o /tmp/vagrant_lamp.zip " + repo_url
+    system "unzip /tmp/vagrant_lamp.zip -d /tmp"
+    system "mv /tmp/vagrant-lamp-master " + repo_path
   end
 
   def brew_install(package, *options)
@@ -31,12 +37,6 @@ module Support
     return unless output.include? 'Not installed'
 
     system "brew cask install #{package} #{options.join ' '}"
-  end
-
-  def git_clone(user, package, path)
-    unless File.exist? path
-      system "git clone https://github.com/#{user}/#{package} #{path}"
-    end
   end
 
   def app_path(name)
@@ -199,7 +199,7 @@ module Steps
 
       self.block description
 
-      Support.git_clone("gocodeup", "vagrant-lamp", full_repo_path)
+      Support.git_download(Support.repo_url, full_repo_path)
 
       # set up vagrant box in the repo
     end
