@@ -4,8 +4,8 @@ module Support
   extend self
 
   @@repo_path = "~/vagrant-lamp"
-  @@repo_url = "https://github.com/gocodeup/vagrant-lamp/archive/master.zip"
-  @@steps = ["start", "xcode", "homebrew", "git", "final"]
+  @@repo_url = "https://github.com/bbatsche/vagrant-lamp/archive/master.zip"
+  @@steps = ["start", "xcode", "homebrew", "vagrant_lamp", "git", "sublime", "final"]
 
   def steps
     @@steps
@@ -23,6 +23,10 @@ module Support
     system "curl -L --progress-bar -o /tmp/vagrant_lamp.zip " + repo_url
     system "unzip /tmp/vagrant_lamp.zip -d /tmp"
     system "mv /tmp/vagrant-lamp-master " + repo_path
+  end
+
+  def subl_pkg_install(package_path)
+    system "curl -L --progress-bar -o \"#{package_path}/Package Control.sublime-package\" https://sublime.wbond.net/Package%20Control.sublime-package"
   end
 
   def brew_install(package, *options)
@@ -44,6 +48,8 @@ module Support
     ["~#{path}", path].each do |full_path|
       return full_path if File.directory? full_path
     end
+
+    return nil
   end
 
   def app?(name)
@@ -52,12 +58,6 @@ module Support
 
   def xcode?
     `xcode-select --print-path 2>&1`
-
-    $?.success?
-  end
-
-  def repo_checked_out?(path)
-    `cd #{path} && git status`
 
     $?.success?
   end
@@ -76,7 +76,7 @@ module Steps
   def block(description)
     line = ''
 
-    description.split.each do |word|
+    description.split(/ /).each do |word|
       if line.length + word.length > 76
         puts "   #{line}"
         line = ''
@@ -86,6 +86,7 @@ module Steps
     end
 
     puts "   #{line}"
+    puts "\n   Press 'Return' to continue."
     gets
   end
 
@@ -98,11 +99,15 @@ module Steps
       when "homebrew"
         self.heading "Setting up Homebrew"
       when "vagrant"
-        self.heading "Setting Up Vagrant Box"
-      when "git"
+        self.heading "Setting up Vagrant Box"
+      when "vagrant_lamp"
         self.heading "Checking Out Vagrant LAMP Repository"
+      when "git"
+        self.heading "Configuring SSH Keys for Git"
       when "final"
         self.heading "Final Configuration Steps"
+      when "sublime"
+        self.heading "Setting up the Sublime Text editor"
       else
         raise "Unknown step #{name}"
     end
@@ -113,8 +118,7 @@ module Steps
   def start
     description = "This script will go through and make sure you have all the tools you need to get started as a Codeup student. "
     description+= "At several points through this process, you may be asked for a password; this is normal. "
-    description+= "Enter the password you use to log in to your computer or otherwise install software normally. "
-    description+= "To get started press the 'Return' key on your keyboard."
+    description+= "Enter the password you use to log in to your computer or otherwise install software normally."
 
     self.block description
   end
@@ -170,28 +174,10 @@ module Steps
     Support.brew_cask_install "vagrant"
   end
 
-  def vagrant
-    boxes = `vagrant box list`
-
-    if boxes.include? "codeup-raring"
-      description = "Looks like you've already setup our vagrant box, we'll move on."
-
-      self.block description
-    else
-      description = "Now we will download our vagrant box file. Vagrant is a utility for managing virtual machines, and "
-      description+= "a box file contains a virtual machine definition and its code. Be patient! This file is a little over "
-      description+= "400MB and will take a while to download."
-
-      self.block description
-
-      system "vagrant box add codeup-raring #{Support.box_url}"
-    end
-  end
-
-  def git
+  def vagrant_lamp
     full_repo_path = File.expand_path Support.repo_path
 
-    if File.directory?(full_repo_path) && Support.repo_checked_out?(full_repo_path)
+    if File.directory?(full_repo_path)
       self.block "Looks like our project directory has already been checked out. On to the next step."
     else
       description = "We will now use Git to download our project directory. This project will set up your Vagrant "
@@ -201,24 +187,19 @@ module Steps
 
       Support.git_download(Support.repo_url, full_repo_path)
 
-      # set up vagrant box in the repo
+      puts # add an extra line after the curl output
     end
+
+   description = "We're going to start up the vagrant box with the command 'vagrant up'. If the box hasn't already been downloaded "
+   description+= "this will grab it and configure the internal settings for it. This could take some considerable time so please "
+   description+= "be patient. Otherwise, it will simply boot up the box and make sure everything is running."
+
+   self.block description
+
+   system "cd #{full_repo_path} && vagrant up"
   end
 
-  def final
-    if IO.readlines("/etc/hosts").grep(/192\.168\.77\.77\s+codeup\.dev/).empty?
-      description = "We need to add an entry to your hosts file so we can easily connect to sites in your Vagrant environment. "
-      description+= "The hosts file is a shortcut for DNS lookup. We are going to put the domain name 'codeup.dev' in the "
-      description+= "hosts file and point it into your Vagrant environment, allowing you to connect into it without "
-      description+= "having to memorize IP addresses or ports. This will require you to again put in your password."
-
-      self.block description
-
-      system "sudo sh -c \"echo '\n192.168.77.77\tcodeup.dev' >> /etc/hosts\""
-
-      # open codeup.dev in web browser
-    end
-
+  def git
     key_path = File.expand_path "~/.ssh/codeup_rsa"
     unless File.exists?(key_path) && File.exists?("#{key_path}.pub")
       description = "We're now going to generate an SSH public/private key pair. This key is like a fingerprint for you "
@@ -239,9 +220,23 @@ module Steps
       end
 
       system "ssh-keygen -trsa -b2048 -C '#{name}@codeup' -f ~/.ssh/codeup_rsa"
-
-      # give instructions on adding key to GitHub.com?
     end
+
+    system "pbcopy < ~/.ssh/codeup_rsa.pub"
+
+    puts "   The following is your new SSH key:\n"
+    puts IO.read(key_path + ".pub")
+    puts
+
+    description = "We've already copied it to the clipboard for you. Now, we are going to take you to the GitHub website "
+    description+= "where you will add it as one of your keys by clicking the \"Add SSH key\" button and pasting "
+    description+= "the contents in there."
+
+    self.block description
+
+    system "open https://github.com/settings/ssh"
+
+    self.block "We'll continue once you're done."
 
     ssh_config = File.expand_path "~/.ssh/config"
     unless File.exists?(ssh_config) && !IO.readlines(ssh_config).grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
@@ -251,9 +246,57 @@ module Steps
         config.puts "\tIdentityFile ~/.ssh/codeup_rsa"
       end
     end
+  end
+
+  def sublime
+    app_path = Support.app_path("Sublime Text") || Support.app_path("Sublime Text 2")
+
+    self.block "Looks like Sublime Text hasn't been installed yet. You'll need to take care of that before class starts." if app_path.nil?
+
+    `which subl`
+
+    system "ln -s \"#{app_path}/Contents/SharedSupport/bin/subl\" /usr/local/bin/subl" unless $?.success?
+
+    system "git config --global core.editor \"subl -n -w\""
+
+    description = "We're going to install the Sublime Text Package Manager. This is a plugin for Sublime that makes "
+    description+= "it incredibly easy to install other plugins and add functionality to Sublime."
+
+    self.block description
+
+    support_dir = app_path[/Sublime Text 2/] || "Sublime Text 3"
+
+    package_dir = File.expand_path "~/Library/Application Support/#{support_dir}/Installed Packages"
+
+    system "mkdir -p \"#{package_dir}\""
+
+    Support.subl_pkg_install package_dir
+  end
+
+  def final
+    if IO.readlines("/etc/hosts").grep(/192\.168\.77\.77\s+codeup\.dev/).empty?
+      description = "We need to add an entry to your hosts file so we can easily connect to sites in your Vagrant environment. "
+      description+= "The hosts file is a shortcut for DNS lookup. We are going to put the domain name 'codeup.dev' in the "
+      description+= "hosts file and point it into your Vagrant environment, allowing you to connect into it without "
+      description+= "having to memorize IP addresses or ports. This will require you to again put in your password."
+
+      self.block description
+
+      system "sudo sh -c \"echo '\n192.168.77.77\tcodeup.dev' >> /etc/hosts\""
+
+    end
+
+    description = "Now that everything has been configured, we are going to load the codeup.dev site. "
+    description+= "This is the site landing page running in YOUR vagrant box inside YOUR OWN computer! "
+    description+= "You should see the Codeup logo as well as some information about PHP. Don't worry too "
+    description+= "much about what it says for now, we just want to verify that everything is running correctly."
+
+    self.block description
+
+    system "open http://codeup.dev"
 
     description = "Ok! We've gotten everything setup and you should be ready to go! Thanks for taking the time to "
-    description+= "get your laptop configured and good luck in the class. Go Codeup!"
+    description+= "get your laptop configured and good luck in the class. \nGo Codeup!"
 
     self.block description
   end
