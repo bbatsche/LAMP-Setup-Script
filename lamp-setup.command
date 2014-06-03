@@ -4,7 +4,7 @@ module Support
   extend self
 
   @@repo_path = "~/vagrant-lamp"
-  @@repo_url = "https://github.com/bbatsche/vagrant-lamp/archive/master.zip"
+  @@repo_url = "https://github.com/gocodeup/Codeup-Vagrant-Setup/archive/master.zip"
   @@steps = ["start", "xcode", "homebrew", "vagrant_lamp", "git", "sublime", "final"]
 
   def steps
@@ -22,7 +22,7 @@ module Support
   def git_download(repo_url, local_path)
     system "curl -L --progress-bar -o /tmp/vagrant_lamp.zip " + repo_url
     system "unzip /tmp/vagrant_lamp.zip -d /tmp"
-    system "mv /tmp/vagrant-lamp-master " + repo_path
+    system "mv /tmp/Codeup-Vagrant-Setup-master " + repo_path
   end
 
   def subl_pkg_install(package_path)
@@ -186,17 +186,19 @@ module Steps
       self.block description
 
       Support.git_download(Support.repo_url, full_repo_path)
-
-      puts # add an extra line after the curl output
     end
 
-   description = "We're going to start up the vagrant box with the command 'vagrant up'. If the box hasn't already been downloaded "
-   description+= "this will grab it and configure the internal settings for it. This could take some considerable time so please "
-   description+= "be patient. Otherwise, it will simply boot up the box and make sure everything is running."
+    system "sudo /usr/bin/easy_install passlib"
 
-   self.block description
+    puts # add an extra line after the output
 
-   system "cd #{full_repo_path} && vagrant up"
+    description = "We're going to start up the vagrant box with the command 'vagrant up'. If the box hasn't already been downloaded "
+    description+= "this will grab it and configure the internal settings for it. This could take some considerable time so please "
+    description+= "be patient. Otherwise, it will simply boot up the box and make sure everything is running."
+
+    self.block description
+
+    system "cd #{full_repo_path} && vagrant up"
   end
 
   def git
@@ -251,7 +253,10 @@ module Steps
   def sublime
     app_path = Support.app_path("Sublime Text") || Support.app_path("Sublime Text 2")
 
-    self.block "Looks like Sublime Text hasn't been installed yet. You'll need to take care of that before class starts." if app_path.nil?
+    if app_path.nil?
+      self.block "Looks like Sublime Text hasn't been installed yet. You'll need to take care of that before class starts."
+      return
+    end
 
     `which subl`
 
