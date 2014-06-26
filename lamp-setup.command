@@ -202,7 +202,7 @@ module Steps
   end
 
   def git
-    key_path = File.expand_path "~/.ssh/codeup_rsa"
+    key_path = File.expand_path "~/.ssh/id_rsa"
     unless File.exists?(key_path) && File.exists?("#{key_path}.pub")
       description = "We're now going to generate an SSH public/private key pair. This key is like a fingerprint for you "
       description+= "on your laptop. We'll use this key for connecting into GitHub without having to enter a password, and "
@@ -221,10 +221,10 @@ module Steps
         name = gets.chomp
       end
 
-      system "ssh-keygen -trsa -b2048 -C '#{name}@codeup' -f ~/.ssh/codeup_rsa"
+      system "ssh-keygen -trsa -b2048 -C '#{name}@codeup' -f #{key_path}"
     end
 
-    system "pbcopy < ~/.ssh/codeup_rsa.pub"
+    system "pbcopy < #{key_path}.pub"
 
     puts "   The following is your new SSH key:\n"
     puts IO.read(key_path + ".pub")
@@ -239,15 +239,6 @@ module Steps
     system "open https://github.com/settings/ssh"
 
     self.block "We'll continue once you're done."
-
-    ssh_config = File.expand_path "~/.ssh/config"
-    unless File.exists?(ssh_config) && !IO.readlines(ssh_config).grep(/^\s*Host(?:Name)?\s+github\.com/).empty?
-      File.open(ssh_config, "a") do |config|
-        config.puts "Host github.com"
-        config.puts "\tUser git"
-        config.puts "\tIdentityFile ~/.ssh/codeup_rsa"
-      end
-    end
   end
 
   def sublime
@@ -301,9 +292,18 @@ module Steps
     system "open http://codeup.dev"
 
     description = "Ok! We've gotten everything setup and you should be ready to go! Thanks for taking the time to "
-    description+= "get your laptop configured and good luck in the class. \nGo Codeup!"
+    description+= "get your laptop configured and good luck in the class."
 
     self.block description
+
+    puts "     _____         _____           _                  _ "
+    puts "    |  __ \\       /  __ \\         | |                | |"
+    puts "    | |  \\/ ___   | /  \\/ ___   __| | ___ _   _ _ __ | |"
+    puts "    | | __ / _ \\  | |    / _ \\ / _` |/ _ \\ | | | '_ \\| |"
+    puts "    | |_\\ \\ (_) | | \\__/\\ (_) | (_| |  __/ |_| | |_) |_|"
+    puts "     \\____/\\___/   \\____/\\___/ \\__,_|\\___|\\__,_| .__/(_)"
+    puts "                                               | |      "
+    puts "                                               |_|      "
   end
 end
 
