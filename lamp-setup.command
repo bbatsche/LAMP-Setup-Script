@@ -157,12 +157,11 @@ module Steps
 
       self.block description
 
-      system 'ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"'
+      system 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
     end
 
     # Install brew cask
-    system('brew tap | grep phinze/cask > /dev/null') || system('brew tap phinze/cask')
-    Support.brew_install 'brew-cask'
+    system('brew tap | grep caskroom/cask > /dev/null') || Support.brew_install('caskroom/cask/brew-cask')
 
     # Install ansible
     Support.brew_install 'ansible'
